@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ''
+Metadata: {}
+Parameters: {}
+Mappings: {}
+Conditions: {}
+Resources:
+  FileOpsECRRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      ImageScanningConfiguration:
+        ScanOnPush: false
+      ImageTagMutability: IMMUTABLE
+      RepositoryName: fileops-fileconverter
+      Tags:
+        - Key: Project
+          Value: FileCental
+        - Key: Owner
+          Value: SK
+        - Key: Env
+          Value: dev
+Outputs: {}

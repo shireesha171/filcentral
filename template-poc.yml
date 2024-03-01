@@ -1,3 +1,4 @@
+skkkk
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: AWS cloud-formation template for FileOps project
@@ -52,7 +53,7 @@ Parameters:
 
   oktaPrefix:
     Type: String
-    Default: "okta-provider_"
+    Default: "okta_"
   corsDomain:
     Type: String
   redshiftPort:
@@ -1057,7 +1058,7 @@ Resources:
           Account: !Sub ${AWS::AccountId}
           Region: !Sub ${AWS::Region}
           RedshiftPort: !Ref redshiftPort
-      #SK
+      
 
   fileopsSnsTroubleshooting:
     Type: AWS::Serverless::Function
@@ -1074,30 +1075,12 @@ Resources:
         SecurityGroupIds:
           - !Ref Securitygroup
 
-  FileopsSNSDeliveringSubscription:
+   FileopsSNSDeliveringSubscription:
     Type: AWS::SNS::Subscription
     Properties:
       Protocol: lambda
       TopicArn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:SNS_Delivering
       Endpoint: !GetAtt fileopsSnsTroubleshooting.Arn
-
-  FileopsFileConverter:
-    Type: AWS::Serverless::Function
-    Properties:
-      PackageType: Image
-      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/fileops-fileconverter:latest"
-      FunctionName: !Sub fileops-FileConverter-${Environment}
-      Architectures: [ 'x86_64' ] 
-      Role: !GetAtt FileopsLambdaRole.Arn
-      Timeout: 900
-      Environment:
-        Variables:
-          Environment: !Ref Environment
-          Account: !Sub ${AWS::AccountId}
-          Region: !Sub ${AWS::Region}
-          S3FileStorage: !Ref S3FileStorage
-      EventInvokeConfig:
-        MaximumRetryAttempts: 0
 
   FileopsSchedulerSnsTopic:
     Type: AWS::SNS::Topic

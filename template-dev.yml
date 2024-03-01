@@ -17,11 +17,23 @@ Parameters:
       - dev
       - qa
       - prod
+  #Role:
+  #  Type: String
+  #  Description: "Lambda execute role for the  Fileops_Lambda_Execute"
+  #  Default: "arn:aws:iam::478313837588:role/Fileops_Lambda_Execute"
+  #Role1:
+  #  Type: String
+  #  Description: "Event bridge role execute role for the FileOps_Lambda_EventBridge_Role"
+  #  Default: "arn:aws:iam::478313837588:role/FileOps_Lambda_EventBridge_Role"
+  NewRole:
+    Type: String
+    Description: "New Role"
+    Default: "arn:aws:iam::478313837588:role/FileOps_Role"
 
   ManagedLayer:
     Type: String
     Description: "Aws managed layer for the Pandas lib"
-    Default: "arn:aws:lambda:us-east-1:336392948345:layer:AWSSDKPandas-Python310:7"
+    Default: "arn:aws:lambda:us-east-2:336392948345:layer:AWSSDKPandas-Python310:5"
   EmailSenderId:
     Type: String
     Default: "keerthivasan.ramanathan@blumetra.com"
@@ -30,29 +42,16 @@ Parameters:
     Default: "devi.pinnamaneni@blumetra.com"
   S3FileStorage:
     Type: String
-    Default: "filecentral-storage-new"
-
-  PvtSubnet1:
-    Type: String
-    Default: "subnet-014586bf68f0cb2e2"
-  PvtSubnet2:
-    Type: String
-    Default: "subnet-0372078f8abe273cb"
-  Securitygroup:
-    Type: String
-    Default: "sg-01024fc78bd65ed77"
-#prashanth
+    Default: "fileops-storage"
   OktaDomain:
     Type: String
-    Default: "dev-87543225.okta.com"
-
+    Default: "dev-47288355.okta.com"
   CognitoUserPoolId:
     Type: String
-    Default: "us-east-1_yWq5YJssk"
-
+    Default: "us-east-2_UUuOlFrtd"
   oktaPrefix:
     Type: String
-    Default: "okta-provider_"
+    Default: "okta_"
   corsDomain:
     Type: String
   redshiftPort:
@@ -64,139 +63,11 @@ Resources:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub fileops-userpool-${Environment}
-  FileopsLambdaRole:
-    Type: "AWS::IAM::Role"
-    Properties:
-      RoleName: !Sub FileOps_Role-${Environment}
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: "Allow"
-            Principal:
-              Service: 
-                - ses.amazonaws.com
-                - sns.amazonaws.com
-                - lambda.amazonaws.com
-                - scheduler.amazonaws.com
-                - events.amazonaws.com
-                - s3.amazonaws.com
-            Action: "sts:AssumeRole"
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-      Policies:
-        - PolicyName: multiple_services_policy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: "Allow"
-                Action:
-                  - "s3:*"
-                Resource:
-                  - !Sub "arn:aws:s3:::filecentral-storage-new-${Environment}"
-                  - !Sub "arn:aws:s3:::filecentral-storage-new-${Environment}/*"
-              - Effect: "Allow"
-                Action:
-                  - "secretsmanager:*"
-                Resource: '*'    
-              - Effect: Allow
-                Action:
-                  - 'cognito-idp:*'
-                Resource: '*'
-              - Effect: "Allow"
-                Action:
-                  - "rds:*"
-                Resource:
-                  - !Sub "arn:aws:rds:${AWS::Region}:${AWS::AccountId}:db:filecentral-${Environment}"
-              - Effect: "Allow"
-                Action:
-                  - "ecs:*"
-                  - "ecs:RunTask"
-                Resource:
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task/*"
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/filecentral-cluster-dev"
-                  - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/FileOps-data-profiling:2"
-              - Effect: "Allow"
-                Action:
-                  - "lambda:InvokeFunction"
-                  - "lambda:CreateFunction"
-                  - "lambda:UpdateFunctionCode"
-                  - "lambda:GetFunction"
-                  - "lambda:ListFunctions"
-                  - "ses:*"  # Add SES full access here
-                Resource: "*"
-              - Effect: "Allow"
-                Action:
-                  - "iam:PassRole"
-                Resource:
-                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/ecsTaskExecutionRole-${Environment}"
-              - Effect: "Allow"
-                Action:
-                  - "scheduler:*"
-                Resource: "*"
-              - Effect: "Allow"
-                Action:
-                  - "events:PutRule"
-                  - "events:PutTargets"
-                Resource: "*"
-              - Effect: 'Allow'
-                Action:
-                  - 'ec2:CreateNetworkInterface'
-                  - 'ec2:DescribeNetworkInterfaces'
-                  - 'ec2:DeleteNetworkInterface'
-                Resource: '*'
-              - Effect: "Allow"
-                Action:
-                  - "sns:Subscribe"
-                  - "sns:Publish"
-                  - "sns:ListSubscriptionsByTopic"
-                  - "sns:Unsubscribe"
-                Resource: "*"
-              - Effect: "Allow"
-                Action: "iam:PassRole"
-                Resource: !Sub "arn:aws:iam::*:role/FileOps_Role-${Environment}"
-                Condition:
-                  StringLike:
-                    iam:PassedToService: "events.amazonaws.com"
-              - Effect: "Allow"
-                Action: "iam:PassRole"
-                Resource: !Sub "arn:aws:iam::*:role/FileOps_Role-${Environment}"
-                Condition:
-                  StringLike:
-                    iam:PassedToService: "scheduler.amazonaws.com"
-                
-  ecsTaskExecutionRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub ecsTaskExecutionRole-${Environment}
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - ecs-tasks.amazonaws.com
-                - s3.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
-        - "arn:aws:iam::aws:policy/CloudWatchFullAccess"
-      Policies:
-        - PolicyName: s3_policy_new
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - "s3:*"
-                Resource:
-                  - !Sub "arn:aws:s3:::filecentral-storage-new-${Environment}"
-                  - !Sub "arn:aws:s3:::filecentral-storage-new-${Environment}/*"
-      
-#  S3bucket:
-#    Type: AWS::S3::Bucket
-#    Properties:
-#      BucketName: !Sub fileops-storage-${Environment}
 
+  #  S3bucket:
+  #    Type: AWS::S3::Bucket
+  #    Properties:
+  #      BucketName: !Sub fileops-storage-${Environment}
 
   ApiGatewayApi:
     Type: AWS::Serverless::Api
@@ -227,7 +98,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-BusinessProcess-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -235,12 +106,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /business-process
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
 
       Layers:
         - !Ref fileopsEssentialLayer
@@ -255,7 +120,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-AnalyzeSchema-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -263,12 +128,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job/analyze-schema
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
 
       Layers:
         - !Ref fileopsEssentialLayer
@@ -283,7 +142,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-Authentication-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -291,39 +150,33 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /auth
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
         Variables:
           Environment: !Ref Environment
 
-#  fileopsBusinessProcessSourceConfig:
-#    Type: AWS::Serverless::Function
-#    Properties:
-#      CodeUri: functions/fileops-BusinessProcessSourceConfig/
-#      Handler: app.lambda_handler
-#      Runtime: python3.10
-#      FunctionName: !Sub fileops-BusinessProcessSourceConfig-${Environment}
-#      Role: !GetAtt FileopsLambdaRole.Arn
-#      Events:
-#        ProxyApiRoot:
-#          Type: Api
-#          Properties:
-#            RestApiId: !Ref ApiGatewayApi
-#            Path: /job/final-save
-#            Method: ANY
-#      Layers:
-#        - !Ref fileopsEssentialLayer
-#        - arn:aws:lambda:us-east-2:336392948345:layer:AWSSDKPandas-Python310:4
-#      Environment:
-#        Variables:
-#          Environment: !Ref Environment
+  #  fileopsBusinessProcessSourceConfig:
+  #    Type: AWS::Serverless::Function
+  #    Properties:
+  #      CodeUri: functions/fileops-BusinessProcessSourceConfig/
+  #      Handler: app.lambda_handler
+  #      Runtime: python3.10
+  #      FunctionName: !Sub fileops-BusinessProcessSourceConfig-${Environment}
+  #      Role: !Ref NewRole
+  #      Events:
+  #        ProxyApiRoot:
+  #          Type: Api
+  #          Properties:
+  #            RestApiId: !Ref ApiGatewayApi
+  #            Path: /job/final-save
+  #            Method: ANY
+  #      Layers:
+  #        - !Ref fileopsEssentialLayer
+  #        - arn:aws:lambda:us-east-2:336392948345:layer:AWSSDKPandas-Python310:4
+  #      Environment:
+  #        Variables:
+  #          Environment: !Ref Environment
 
   fileopsBusinessUserProcess:
     Type: AWS::Serverless::Function
@@ -332,7 +185,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-BusinessUserProcess-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -340,12 +193,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /validation-process
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -361,7 +208,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-DataProfiling-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -369,12 +216,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /data-profiling
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -389,7 +230,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-DqRules-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -397,12 +238,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job/dq-rules
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -416,7 +251,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-EmailNotification-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref fileopsJinja2Layer
@@ -426,12 +261,6 @@ Resources:
           Sender_id: !Ref EmailSenderId
           Sender_cc_id: !Ref EmailSenderCCId
           Region: !Sub ${AWS::Region}
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
 
   fileopsErrorCodes:
     Type: AWS::Serverless::Function
@@ -440,7 +269,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-ErrorCodes-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -448,12 +277,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /error-codes
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -467,7 +290,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-Groups-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -475,12 +298,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /groups
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -494,7 +311,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-Users-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -502,12 +319,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /users
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -525,7 +336,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-FileUpload-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -545,12 +356,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /jira/upload
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -565,7 +370,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-FinalSaveJob-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -573,12 +378,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job/final-save
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -597,7 +396,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-JobRunDetails-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -611,12 +410,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job-runs
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -632,7 +425,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-JobsSchedule-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -640,12 +433,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job/schedule
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -659,7 +446,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-Logs-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -667,12 +454,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job-runs/logs
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -686,7 +467,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-PostSignup-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         CognitoEvent:
           Type: Cognito
@@ -695,12 +476,6 @@ Resources:
             Trigger:
               - PreSignUp
               - PostAuthentication
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -710,7 +485,6 @@ Resources:
           user_pool_id: !Ref CognitoUserPoolId
           okta_prefix: !Ref oktaPrefix
 
-
   fileopsJobColumns:
     Type: AWS::Serverless::Function
     Properties:
@@ -718,7 +492,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-JobColumns-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -726,12 +500,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job/columns
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -747,7 +515,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-SampleFileProcess-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -755,12 +523,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job/sample-file-process
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -776,7 +538,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-SourceFileConfig-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -784,12 +546,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job/configuration
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -804,7 +560,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-SourceTargetConfig-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -818,12 +574,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /source-target-config/list
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -839,7 +589,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-TargetFileConfig-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -847,12 +597,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: jobs/target-file-config
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -867,7 +611,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-TargetTransformation-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -875,12 +619,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /job/transformation
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -896,7 +634,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-GetList-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -904,12 +642,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /list-items
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -924,7 +656,7 @@ Resources:
       Handler: code.app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-ValidationProcess-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -932,12 +664,6 @@ Resources:
             RestApiId: !Ref ApiGatewayApi
             Path: /file-validate
             Method: ANY
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
       Layers:
         - !Ref fileopsEssentialLayer
         - !Ref ManagedLayer
@@ -960,28 +686,25 @@ Resources:
       SourceAccount: !Sub ${AWS::AccountId}
 
   FileopsGenerateDataProfile:
-    Type: 'AWS::Serverless::Function'
+    Type: AWS::Serverless::Function
     Properties:
       CodeUri: functions/fileops-GenerateDataProfile/
       Handler: app.lambda_handler
       Runtime: python3.10
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Layers:
         - !Ref fileopsEssentialLayer
       FunctionName: !Sub fileops-GenerateDataProfile-${Environment}
       Environment:
         Variables:
           Environment: !Ref Environment
+          S3FileStorage: !Ref S3FileStorage
           Account: !Sub ${AWS::AccountId}
-          Region: !Sub ${AWS::Region}
-          cluster_name: filecentral-cluster-dev
+          cluster_name: !Sub filecentral-cluster-${Environment}
+          task_definition_ver: 5
           container_name: Task-data-profile
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
+          security_groups: '["sg-08551f70d8d914843"]'
+          subnet_at: '["subnet-090893965aa1e157c"]'
   FileopsJobScheduler:
     Type: AWS::Serverless::Function
     Properties:
@@ -989,7 +712,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-JobScheduler-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Layers:
         - !Ref fileopsEssentialLayer
       Environment:
@@ -997,12 +720,7 @@ Resources:
           Environment: !Ref Environment
           Account: !Sub ${AWS::AccountId}
           Region: !Sub ${AWS::Region}
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
+
   fileopsSearch:
     Type: AWS::Serverless::Function
     Properties:
@@ -1010,7 +728,7 @@ Resources:
       Handler: code.app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-Search-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -1026,12 +744,6 @@ Resources:
           Environment: !Ref Environment
           Account: !Sub ${AWS::AccountId}
           Region: !Sub ${AWS::Region}
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
 
   fileopsRedshift:
     Type: AWS::Serverless::Function
@@ -1040,7 +752,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub fileops-Redshift-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Events:
         ProxyApiRoot:
           Type: Api
@@ -1057,7 +769,6 @@ Resources:
           Account: !Sub ${AWS::AccountId}
           Region: !Sub ${AWS::Region}
           RedshiftPort: !Ref redshiftPort
-      #SK
 
   fileopsSnsTroubleshooting:
     Type: AWS::Serverless::Function
@@ -1066,14 +777,7 @@ Resources:
       Handler: app.lambda_handler
       Runtime: python3.10
       FunctionName: !Sub sns-troubleshooting-lambda-${Environment}
-      Role: !GetAtt FileopsLambdaRole.Arn
-      VpcConfig:
-        SubnetIds:
-          - !Ref PvtSubnet1
-          - !Ref PvtSubnet2
-        SecurityGroupIds:
-          - !Ref Securitygroup
-
+      Role: !Ref NewRole
   FileopsSNSDeliveringSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -1084,20 +788,21 @@ Resources:
   FileopsFileConverter:
     Type: AWS::Serverless::Function
     Properties:
-      PackageType: Image
-      ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/fileops-fileconverter:latest"
+      CodeUri: functions/fileops-FileConverter/
+      Handler: code.app.lambda_handler
+      Runtime: python3.10
       FunctionName: !Sub fileops-FileConverter-${Environment}
-      Architectures: [ 'x86_64' ] 
-      Role: !GetAtt FileopsLambdaRole.Arn
+      Role: !Ref NewRole
       Timeout: 900
+    #  Layers:
+    #    - !Ref fileopss3fsLayer
+    #    - !Ref ManagedLayer
       Environment:
         Variables:
           Environment: !Ref Environment
           Account: !Sub ${AWS::AccountId}
           Region: !Sub ${AWS::Region}
           S3FileStorage: !Ref S3FileStorage
-      EventInvokeConfig:
-        MaximumRetryAttempts: 0
 
   FileopsSchedulerSnsTopic:
     Type: AWS::SNS::Topic
@@ -1105,12 +810,12 @@ Resources:
       DisplayName: FileOps Job Schedule Topic
       TopicName: !Sub FileOps-job-schedule-topic-new-${Environment}
       Tags:
-      - Key: Project
-        Value: FileOps
-      - Key: Owner
-        Value: FileOpsUser
-      - Key: Env
-        Value: dev
+        - Key: Project
+          Value: FileOps
+        - Key: Owner
+          Value: FileOpsUser
+        - Key: Env
+          Value: dev
 
   FileopsEmailNotificationSnsTopic:
     Type: AWS::SNS::Topic
@@ -1124,7 +829,7 @@ Resources:
           Value: FileOpsUser
         - Key: Env
           Value: dev
-        
+
   FileopsSchedulerSnsSubscription:
     Type: AWS::SNS::Subscription
     Properties:
@@ -1161,11 +866,11 @@ Resources:
       ContentUri: layers/fileops-essentials-layer/
       LayerName: !Sub fileops-essentials-${Environment}
       CompatibleRuntimes:
-        - python3.10  
+        - python3.10
     Metadata:
-      BuildMethod: python3.10  
+      BuildMethod: python3.10
       Variables:
-         Region: !Sub ${AWS::Region} # Required to have AWS SAM build this layer
+        Region: !Sub ${AWS::Region} # Required to have AWS SAM build this layer
 
   fileopsJinja2Layer:
     Type: AWS::Serverless::LayerVersion
