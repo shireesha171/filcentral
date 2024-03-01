@@ -42,9 +42,9 @@ jobs:
 
       with: 
 
-        role-to-assume: arn:aws:iam::478313837588:role/github-actions-role 
+        role-to-assume: arn:aws:iam::327083347288:role/Github-deployment-Role
 
-        aws-region: us-east-2 
+        aws-region: us-east-1
 
 
     - name: Verify SAM CLI Installation 
@@ -83,4 +83,4 @@ jobs:
 
       run: | 
 
-        sam deploy --template-file template.yaml --stack-name fileops-stack-devvv --no-confirm-changeset --parameter-overrides Environment=devvv 
+        sam deploy --template-file template.yaml --stack-name fileops-stack-devvv --no-confirm-changeset --resolve-image-repos  --parameter-overrides Environment=devvv corsDomain=* --capabilities CAPABILITY_NAMED_IAM
