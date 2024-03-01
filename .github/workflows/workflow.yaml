@@ -1,0 +1,86 @@
+name: FC-Backend-deployment-poc
+
+#on main branch push 
+
+on: 
+
+  push: 
+
+    branches: 
+
+      - main  # Replace with your branch name 
+
+  
+
+permissions: 
+
+  contents: read 
+
+  id-token: write 
+
+  
+
+jobs: 
+
+  build: 
+
+    runs-on: ubuntu-latest 
+
+     
+
+    steps: 
+
+    - name: Checkout repository 
+
+      uses: actions/checkout@v2 
+
+  
+
+    - name: Configure AWS credentials 
+
+      uses: aws-actions/configure-aws-credentials@v2 
+
+      with: 
+
+        role-to-assume: arn:aws:iam::478313837588:role/github-actions-role 
+
+        aws-region: us-east-2 
+
+
+    - name: Verify SAM CLI Installation 
+
+      run: sam --version 
+
+  
+
+    - name: Validate SAM template 
+
+      run: | 
+
+        sam validate --template template.yaml 
+
+     
+
+    - name: Install Python dependencies essential layer 
+
+      run: | 
+
+        cd layers/fileops-essentials-layer/python 
+
+        pip install -r requirements.txt -t . 
+
+    - name: Install Python dependencies for jinja2 layer 
+
+      run: | 
+
+        cd layers/fileops-jinja2-layer/python 
+
+        pip install -r requirements.txt -t .  
+
+  
+
+    - name: Deploy SAM template 
+
+      run: | 
+
+        sam deploy --template-file template.yaml --stack-name fileops-stack-devvv --no-confirm-changeset --parameter-overrides Environment=devvv 
