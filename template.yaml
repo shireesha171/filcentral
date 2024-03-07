@@ -14,7 +14,7 @@ Parameters:
   Environment:
     Type: String
     AllowedValues:
-      - devvv
+      - dev
       - qa
       - prod
 
@@ -58,6 +58,9 @@ Parameters:
   redshiftPort:
     Type: String
     Default: "5439"
+  RedshiftRole:
+    Type: String
+    Default: "arn:aws:iam::327083347288:role/redshift-role"
 
 Resources:
   CognitoUserPool:
@@ -589,6 +592,7 @@ Resources:
           Email_Notification_Sns_Topic: !Ref FileopsEmailNotificationSnsTopic
           S3FileStorage: !Ref S3FileStorage
           Account: !Sub ${AWS::AccountId}
+          Redshift_Role: !Ref RedshiftRole
 
   fileopsJobRunDetails:
     Type: AWS::Serverless::Function
@@ -976,6 +980,8 @@ Resources:
           Region: !Sub ${AWS::Region}
           cluster_name: filecentral-cluster-dev
           container_name: Task-data-profile
+          security_groups: '["sg-01024fc78bd65ed77"]'
+          subnet_at: '["subnet-0372078f8abe273cb"]'
       VpcConfig:
         SubnetIds:
           - !Ref PvtSubnet1
@@ -1081,12 +1087,12 @@ Resources:
       TopicArn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:SNS_Delivering
       Endpoint: !GetAtt fileopsSnsTroubleshooting.Arn
 
-  FileopsFileConverter:
+  FileopsFileconverter:
     Type: AWS::Serverless::Function
     Properties:
       PackageType: Image
       ImageUri: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/fileops-fileconverter:latest"
-      FunctionName: !Sub fileops-FileConverter-${Environment}
+      FunctionName: !Sub fileops-Fileconverter-${Environment}
       Architectures: [ 'x86_64' ] 
       Role: !GetAtt FileopsLambdaRole.Arn
       Timeout: 900

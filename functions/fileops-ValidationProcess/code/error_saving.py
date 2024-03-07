@@ -47,7 +47,7 @@ def error_storing_db(errorList, buiness_process_valid, complete_error_list, busi
                """
         values = (str(uuid.uuid4()), data, buiness_process_valid['job_id'],
                   buiness_process_valid['business_validate_process_id'], "Completed", error_records,
-                  "Scheduled" if ('job_type' in params and params['job_type'] == 'Scheduled') else "Ad hoc", date,
+                  "Scheduled" if ('job_type' in params and params['job_type'] == 'Scheduled') else "s3_trigger" if ('job_type' in params and params['job_type'] == 's3_trigger') else "Ad hoc", date,
                   job_validation_status.value,source_file_location)
         cursor.execute(query, values)
         inserted_row = cursor.fetchone()

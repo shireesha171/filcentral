@@ -5,7 +5,7 @@ from dbconnection import pool, getConnection
 from .constants import s3_fileops_storage_bucket, job_run_logs_folder
 
 
-def store_logs_db(job_run_id: str, logs: str):
+def store_logs_db(job_run_id: str, logs: str,start_time,end_time):
     print("store_logs::store_logs", f"Logs: {logs}")
 
     conn, cursor = None, None
@@ -15,10 +15,10 @@ def store_logs_db(job_run_id: str, logs: str):
 
         update_query = """
         UPDATE job_runs
-        SET logs = %s
+        SET start_time=%s,end_time=%s ,logs = %s
         WHERE uuid = %s
     """
-        values = (logs, job_run_id)
+        values = (start_time,end_time,logs, job_run_id)
         cursor.execute(update_query, values)
         conn.commit()
     except psycopg2.DatabaseError as e:

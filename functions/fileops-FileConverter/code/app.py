@@ -1,12 +1,12 @@
-"""This module is for source file configuration"""
-import json
+"""This module is for File Converter"""
 
-from .services.transform_data_service import transform_data
-from .services.parquet_service import create_parquet_bytes, get_parquet_partition_data, get_partitions, \
-    write_parquet_to_s3
+from .interfaces.source_file_config import TargetFileConfigDetails, TargetFileTypes
+from .interfaces.target_config import TargetConfig
+from .services.db_data_service import get_target_file_config_details, get_target_config_data
+from .services.parquet_service import create_parquet_bytes, get_partitions
 from .services.s3_service import S3Service, DataTransformationS3Service
-
-from .utils.utils import get_s3_bucket_name, get_s3_target_path, handle_errors
+from .services.transform_data_service import transform_data
+from .utils.utils import get_s3_bucket_name, handle_errors, parse_location_pattern
 
 
 @handle_errors
@@ -16,36 +16,47 @@ def lambda_handler(event, context):
 
     # Fetch job_uuid, job_run_uuid, file_location, file_name
     job_uuid = event['job_uuid']
-    job_run_uuid = event['job_run_uuid']
     source_file_path = event["source_file_path"]
     source_file_name = event["source_file_name"]
 
     # Fetch S3 Bucket Name
     s3_bucket_name = get_s3_bucket_name()
 
+    # Fetch target_file_config_details
+    target_file_config_details: TargetFileConfigDetails = get_target_file_config_details(job_uuid)
+
+    # Fetch target config data
+    target_config_data: TargetConfig = get_target_config_data(job_uuid)
+
+    # Parse target config data
+    target_bucket_name, target_object_path = parse_location_pattern(target_config_data.location_pattern)
+
     # Transform Data
-    target_metadata, transformed_df = transform_data(job_uuid=job_uuid, file_path=source_file_path,
+    target_metadata, transformed_df = transform_data(job_uuid=job_uuid,
+                                                     file_path=source_file_path,
                                                      file_name=source_file_name,
                                                      s3_bucket_name=s3_bucket_name)
 
     # Write transformed df to S3
 
-    DataTransformationS3Service.write_target_file_to_s3(bucket_name=s3_bucket_name, job_uuid=job_uuid,
-                                                        job_run_uuid=job_run_uuid,
-                                                        target_df=transformed_df)
+    # For now we have CSV. Need to extend it to other file types.
+    if target_file_config_details.target_file_type == TargetFileTypes.CSV:
+        DataTransformationS3Service.write_target_file_to_s3(bucket_name=target_bucket_name,
+                                                            object_path=target_object_path,
+                                                            target_df=transformed_df)
 
     # Convert DataFrame to Parquet format with partitions
+    if target_file_config_details.target_file_type == TargetFileTypes.PARQUET:
+        parquet_partitions = get_partitions(target_metadata)
 
-    parquet_partitions = get_partitions(target_metadata)
+        # Write parquet to S3
+        s3_filesystem = S3Service.get_s3_bucket_filesystem(target_bucket_name)
 
-    # Write parquet to S3
-    parquet_target_path = get_s3_target_path(job_run_uuid)
+        parquet_target_path = f"{target_bucket_name}/{target_object_path}"
 
-    s3_filesystem = S3Service.get_s3_bucket_filesystem(s3_bucket_name)
-
-    create_parquet_bytes(df=transformed_df, partitions=parquet_partitions, file_system=s3_filesystem,
-                         target_path=parquet_target_path,
-                         )
+        create_parquet_bytes(df=transformed_df, partitions=parquet_partitions, file_system=s3_filesystem,
+                             target_path=parquet_target_path,
+                             )
 
     return {
         'statusCode': 200,

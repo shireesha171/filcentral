@@ -4,11 +4,11 @@ from io import BytesIO
 import chardet
 import pandas as pd
 import psycopg2
-
 from dbconnection import pool, getConnection
+
 from .s3_service import DataTransformationS3Service
-from ..utils.utils import FILE_EXTENSIONS
 from ..utils.errors import FileNotFoundError
+from ..utils.utils import FILE_EXTENSIONS
 
 
 def get_transformation_metadata(job_id):

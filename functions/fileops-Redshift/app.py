@@ -42,7 +42,7 @@ def lambda_handler(event, context):
                 return response(400, "Missing or invalid connection details", "failed")
     except Exception as e:
         print(f"Unknown error caught in Redshift lambda handler : {e}")
-        return response(500, 'Unexpected Error', str(e))
+        return response(500, 'Redshift Test Connection API has failed due to an Unexpected Error', str(e))
 
 
 def response(stauts_code, message, data):

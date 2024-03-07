@@ -7,9 +7,11 @@ class TriggerTypes(Enum):
     Values:
         SCHEDULED (str): Scheduled trigger type
         MANUAL (str): Manual trigger type
+        S3_TRIGGER (str) = S3 Trigger type
     """
     SCHEDULED = "SCHEDULED"
     MANUAL = "MANUAL"
+    S3_TRIGGER = "S3_TRIGGER"
 
 
 class ValidationResultTypes(Enum):

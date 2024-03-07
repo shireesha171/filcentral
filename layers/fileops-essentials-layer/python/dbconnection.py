@@ -9,7 +9,7 @@ def get_secret():
     region = os.environ.get('Region')
     #env = "dev"
 
-    secret_name = f"fileops-postgres-{env}"
+    secret_name = f"filecentral-postgres-{env}"
     region_name = region
     session = boto3.session.Session()
     client = session.client(service_name='secretsmanager', region_name=region_name)

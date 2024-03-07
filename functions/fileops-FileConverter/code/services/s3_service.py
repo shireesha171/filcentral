@@ -2,11 +2,9 @@ from io import StringIO
 
 import boto3
 import pandas as pd
-import psycopg2
 from botocore.exceptions import ClientError
 from s3fs import S3FileSystem
 
-from dbconnection import pool, getConnection
 from ..utils.utils import FILE_EXTENSIONS, CONSTANTS
 
 
@@ -69,7 +67,6 @@ class S3Service:
         return s3
 
 
-
 class DataTransformationS3Service:
 
     @staticmethod
@@ -93,44 +90,16 @@ class DataTransformationS3Service:
             raise e
 
     @staticmethod
-    def write_target_file_to_s3(bucket_name, job_uuid, job_run_uuid, target_df):
+    def write_target_file_to_s3(bucket_name, object_path, target_df):
         """This method is used for writing target file (transformed) to S3"""
 
-        conn, cursor = None, None
+        file_key = object_path + "/" + CONSTANTS.S3_TARGET_FILE_NAME.value
 
-        try:
-            conn, cursor = getConnection()
+        if isinstance(target_df, dict):
+            target_df = pd.DataFrame.from_dict(target_df)
 
-            target_location_query = """select tc.absolute_file_path from jobs j 
-                                       join source_file_config sfc on j.id = sfc.job_id 
-                                       right join target_config tc on tc.id = sfc.target_id 
-                                       where j."uuid" = %s"""
+        csv_buffer = StringIO()
+        target_df.to_csv(csv_buffer, index=False)
+        csv_data = csv_buffer.getvalue()
 
-            cursor.execute(target_location_query, (job_uuid,))
-
-            data = cursor.fetchone()
-
-            print("write_target_file_to_s3::DataTransformationS3Service::s3_service", "Target Location Data: ",
-                  data)
-
-            target_location = "/" + data[0].replace("S3://", '').replace("s3://", '') if data is not None else ""
-
-            file_key = CONSTANTS.S3_TARGET_FILE_FOLDER_PATH.value + target_location + "/" + job_run_uuid + "/" + CONSTANTS.S3_TARGET_FILE_NAME.value
-
-            if isinstance(target_df, dict):
-                target_df = pd.DataFrame.from_dict(target_df)
-
-            csv_buffer = StringIO()
-            target_df.to_csv(csv_buffer, index=False)
-            csv_data = csv_buffer.getvalue()
-
-            S3Service.write_file_s3(bucket_name=bucket_name, key=file_key, content=csv_data)
-        except psycopg2.DatabaseError as e:
-            print("write_target_file_to_s3::DataTransformationS3Service::s3_service", f"Database error: {e}")
-            raise e
-        except Exception as e:
-            print("write_target_file_to_s3::DataTransformationS3Service::s3_service", f"Unknown error caught: {e}")
-            raise e
-        finally:
-            cursor.close()
-            pool.putconn(conn)
+        S3Service.write_file_s3(bucket_name=bucket_name, key=file_key, content=csv_data)

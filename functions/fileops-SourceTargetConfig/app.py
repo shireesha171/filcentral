@@ -39,10 +39,10 @@ def lambda_handler(event, context):
         elif event['resource'] == "/source-target-config/list" and event['httpMethod'] == 'GET':
             return listOfConfigurations(user_id, event)
         else:
-            return response(400, 'resource or endpoint not found', None)
+            return response(404, 'resource or endpoint not found', None)
     except Exception as error:
         print(error)
-        return response(400, str(error), None)
+        return response(500, 'Source Target API has failed due to an Unexpected Error',str(error))
 
 
 def saveConfigurationsToDB(table_name, body, created_by):
@@ -147,8 +147,10 @@ def create_secret(body):
         env = os.environ.get('Environment')
         region = os.environ.get('Region')
         # env = "dev"
-        target_name = body['name']
-        secret_name = f"{target_name}-{env}"
+        config_name = body['name']
+        connectivity_type = body["connectivity_type"]
+        config_type = body['config_type']
+        secret_name = f"filecentral/{env}/{config_type}/{connectivity_type}/{config_name}"
         secret_name = secret_name.replace(" ", "_")
         region_name = region
         client = session.client(service_name='secretsmanager', region_name=region_name)

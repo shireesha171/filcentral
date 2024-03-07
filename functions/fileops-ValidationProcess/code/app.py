@@ -16,17 +16,19 @@ from .forming_errors import forming_error
 from .logs import printlogs
 from .run_job_detail import run_job_detail_fun
 from .schema_validations import getSchemaValidations
-from .utils.utils import get_job_validation_status,get_current_date_time, invoke_file_converter_lambda
+from .utils.utils import get_job_validation_status, get_current_date_time, invoke_file_converter_lambda
 # JobRunLogger
 from .utils.loggers import job_run_logger, log_file_validations, log_job_metadata, log_job_run_timestamp, \
     log_job_validation_status, log_schema_validations
 from .utils.store_logs import store_logs_db, store_logs_s3
 from datetime import datetime
 
-#Logger setup
+# Logger setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("validation-process.lambda.handler")
 lambda_client = boto3.client('lambda')
+
+
 # update_job_run_time = log_job_run_timestamp()
 
 
@@ -104,21 +106,24 @@ def lambda_handler(event, context):
                 on_error_setting = record['standard_validations']['on_error'] if "on_error" in record[
                     'standard_validations'] else None
                 terminate_flag = True if on_error_setting == "terminated" else False
-                file_errors, file_validations_data,source_file_location= get_file_validations(record,
-                                                                          business_validate_id,
-                                                                          query_params,terminate_flag)
+                file_errors, file_validations_data, source_file_location = get_file_validations(record,
+                                                                                                business_validate_id,
+                                                                                                query_params,
+                                                                                                terminate_flag)
 
                 # Job Run Logger - Update File Validations
-                log_file_validations(file_name,file_errors, file_validations_data)
+                log_file_validations(file_name, file_errors, file_validations_data)
                 if file_errors[0] > 0:
                     if terminate_flag:
                         logger.info("File validation errors occurred and termination enabled on error")
                         error_list = forming_error(file_validations_data)
                         job_validation_status = get_job_validation_status(file_errors, [0])
-                        job_run_record = error_storing_db(error_list, record, file_validations_data ,
-                                                          business_validate_id, query_params, job_validation_status,source_file_location)
+                        job_run_record = error_storing_db(error_list, record, file_validations_data,
+                                                          business_validate_id, query_params, job_validation_status,
+                                                          source_file_location)
                         logger.info("Saving run logs " + get_current_date_time())
-                        return prepare_job_run_results(job_uuid, job_run_record, job_validation_status, update_job_run_time)
+                        return prepare_job_run_results(job_uuid, job_run_record, job_validation_status,
+                                                       update_job_run_time)
                 logger.info("Source schema validation kicks in...")
                 num_of_schema_validation_errors, schema_validations_data = getSchemaValidations(
                     business_validate_id, record,
@@ -128,8 +133,10 @@ def lambda_handler(event, context):
                 total_validation_results = {**schema_validations_data, **file_validations_data}
                 error_list = forming_error(total_validation_results)
                 job_validation_status = get_job_validation_status(file_errors, num_of_schema_validation_errors)
+
                 job_run_record = error_storing_db(error_list, record, total_validation_results,
-                                                  business_validate_id, query_params, job_validation_status,source_file_location)
+                                                  business_validate_id, query_params, job_validation_status,
+                                                  source_file_location)
                 logger.info("Saving run logs " + get_current_date_time())
 
                 job_run_uuid = job_run_record[1]
@@ -137,7 +144,8 @@ def lambda_handler(event, context):
                 invoke_file_converter_lambda(job_uuid=job_uuid, job_run_id=job_run_uuid, file_path=source_file_location,
                                              file_name=file_name)
 
-                return prepare_job_run_results(job_uuid,job_run_record,job_validation_status, update_job_run_time)
+                return prepare_job_run_results(job_uuid, job_run_record, job_validation_status, update_job_run_time,
+                                               start_time)
             else:
                 return response_body(400, "Provide valid job_id", None)
         else:
@@ -188,19 +196,39 @@ def trigger_logs_lambda(job_run_id):
                             "log_stream_name": os.environ['AWS_LAMBDA_LOG_STREAM_NAME']})
     )
 
-def prepare_job_run_results(job_uuid, stored_job_run_record,job_validation_status, update_job_run_time):
+
+def prepare_job_run_results(job_uuid, stored_job_run_record, job_validation_status, update_job_run_time, start_time):
     get_run_job = run_job_detail_fun(stored_job_run_record, job_validation_status)
     log_job_validation_status(job_validation_status)
     log_job_metadata(get_run_job[0])
-    update_job_run_time.__next__()
+    end_time = update_job_run_time.__next__()
     job_run_id = stored_job_run_record[1]
     job_run_logger.job_id = job_uuid
     job_run_logger.job_run_id = job_run_id
     # JobRunLogger - Store Logs
     job_run_logs_json = job_run_logger.to_json()
-    store_logs_db(stored_job_run_record[1], job_run_logs_json)
+    store_logs_db(stored_job_run_record[1], job_run_logs_json, start_time, end_time)
+
+    if start_time is not None and end_time is not None:
+        start_time_dt = datetime.strptime(start_time, "%Y-%m-%dT%H:%M:%S.%f")
+        end_time_dt = datetime.strptime(end_time, "%Y-%m-%dT%H:%M:%S.%f")
+
+        get_run_job[0]['start_time'] = start_time_dt.strftime('%H:%M:%S')
+        get_run_job[0]['end_time'] = end_time_dt.strftime('%H:%M:%S')
+
+        duration=end_time_dt-start_time_dt
+        duration_dt = datetime.strptime(str(duration), '%H:%M:%S.%f')
+
+        get_run_job[0]['run_duration'] = duration_dt.strftime('%H:%M:%S')
+    else:
+        get_run_job[0]['start_time'] = None
+        get_run_job[0]['end_time'] = None
+        get_run_job[0]['run_duration'] = None
+
+
     store_logs_s3(job_uuid, job_run_id, job_run_logs_json)
     return response_body(200, "Retrieved Successfully", get_run_job)
+
 
 if __name__ == "__main__":
     dateValue = replace_the_pattern_with_date("s3://filecentral/%m/%d/%Y")
@@ -230,14 +258,14 @@ def s3_trigger_event(event_s3_trigger_record):
     conn.commit()
     inserted_row = cursor.fetchone()
     business_process_validate_id = inserted_row[1]
-    location_pattern=file_uploaded_url.replace(f'/{file_name}','')
+    location_pattern = file_uploaded_url.replace(f'/{file_name}', '')
     event = {
         'queryStringParameters': {
             'business_validate_id': business_process_validate_id,
             'job_type': 's3_trigger',
             'location_pattern': location_pattern,
             'file_name_pattern': file_name.split('.csv')[0],
-            'key':s3_bucket_details['object']['key'],
+            'key': s3_bucket_details['object']['key'],
             'bucket_name': s3_bucket_details['bucket']['name']
         }
     }

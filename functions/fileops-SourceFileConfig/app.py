@@ -50,7 +50,7 @@ def lambda_handler(event, context):
 
     except Exception as e:
         print(f"Unknown error caught: {e}")
-        return response(500, 'Unexpected Error', str(e))
+        return response(500, 'Job Configuration API has failed due to an Unexpected Error', str(e))
 
 
 def getJobDetails(job_uuid):

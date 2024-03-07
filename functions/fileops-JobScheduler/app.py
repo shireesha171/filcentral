@@ -114,7 +114,6 @@ def lambda_handler(event, context):
         sns_message = json.loads(event['Records'][0]['Sns']['Message'])
         print("SNS message : ", sns_message)
         payload = sns_message['data']
-        print("payload :", event['body'])
 
         cron_expression = prepare_cron_expression(payload)
         business_process_validate_id = insert_into_business_user_process(payload)

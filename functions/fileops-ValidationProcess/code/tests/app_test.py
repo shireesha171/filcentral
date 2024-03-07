@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-ROOT_FOLDER = Path.cwd().parents[3]
+ROOT_FOLDER = Path.cwd().parents[2]
 
 event_str = f.import_file(f'{ROOT_FOLDER}/events/', 'fileopsValidationProcess.json')
 event = json.loads(event_str)

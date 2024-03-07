@@ -21,6 +21,8 @@ def _map_trigger_type(trigger_type):
         return TriggerTypes.SCHEDULED
     elif trigger_type == "Ad hoc":
         return TriggerTypes.MANUAL
+    elif trigger_type == 's3_trigger':
+        return TriggerTypes.S3_TRIGGER
 
 
 def log_file_validations(file_name,file_errors, file_validation_data):
@@ -136,9 +138,9 @@ def log_job_metadata(job_run_data):
 
 def log_job_run_timestamp():
     job_run_logger.started_time = datetime.now().isoformat()
-    yield f"Validation Job Run Start Time : {job_run_logger.started_time}"
+    yield f"{job_run_logger.started_time}"
     job_run_logger.completed_time = datetime.now().isoformat()
-    yield f"Validation Job Run Completed Time : {job_run_logger.completed_time}"
+    yield f"{job_run_logger.completed_time}"
 
 
 def log_file_metadata(**file_metadata):

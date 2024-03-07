@@ -89,23 +89,23 @@ def lambda_handler(event, context):
                     jr.error_records,
                     sfc.dqrules,
                     jr.errors,
-                    j.uuid, 
+                    j.uuid as job_uuid, 
                     jr.status, 
                     jr.job_validation_status, 
                     tc.uuid as target_id,   
-                    sfc.standard_validations, 
-                    j.file_name, 
+                    sfc.standard_validations,
                     j.file_size, 
                     j.job_name ,
+                    j.file_name as sample_file_name,
                     jr.start_time ,
                     jr.end_time,
                     jr.job_type,     
                     j.schedule_json,
-                    tc.absolute_file_path,
-                    tc.connectivity_type,
+                    tc.connectivity_type as target_connectivity_type,
+                    sc.connectivity_type as source_connectivity_type,
                     buvp.file_name as source_file_name,
-                    sc.absolute_file_path as source_absolute_file_path,
-                    tc.absolute_file_path as target_absolute_file_path
+                    jr.source_file_location as source_absolute_file_path,
+                    jr.target_file_location as target_absolute_file_path
                     from job_runs jr join source_file_config sfc on jr.job_id = sfc.job_id
                     join jobs j on j.id = jr.job_id 
                     left join target_config tc on tc.id = sfc.target_id 
@@ -131,23 +131,41 @@ def lambda_handler(event, context):
                     del record['dqrules']
 
                     if record['start_time'] is not None and record['end_time'] is not None:
-                        start_time = datetime.strptime(record['start_time'], "%Y-%m-%d %H:%M:%S.%f")
-                        end_time = datetime.strptime(record['end_time'], "%Y-%m-%d %H:%M:%S.%f")
+                        start_time = record['start_time']
+                        end_time = record['end_time']
+
+                        record['start_time'] = start_time.strftime('%H:%M:%S')
+                        record['end_time'] = end_time.strftime('%H:%M:%S')
+
                         duration = end_time - start_time
-                        record['Run_Duration'] = str(duration)
+
+                        record['run_duration'] = str(duration).split()[-1].split(".")[0]
+
                     else:
-                        record['Run_Duration'] = None
+                        record['start_time']=None
+                        record['end_time'] = None
+                        record['run_duration'] = None
                     if len(records) > 0:
                         record = records[0]
                         # print(record['source_and_target'])
+                        files_locations_query = "SELECT source_file_location,target_file_location from job_runs WHERE uuid=%s"
+                        cursor.execute(files_locations_query, (job_run_id,))
+                        result = cursor.fetchone()
+                        record['target_absolute_file_path'] = result[1]
+                        conn.commit()
+                        # print(record['source_and_target'])
                         if record is not None and record['source_absolute_file_path'] is not None:
-                            source_data = downloads3(record['source_file_name'],record['source_absolute_file_path'] ,record['uuid'], 'source')
-                            if data is not None:
+                            source_data = downloads3(result[0], record['job_uuid'])
+                            if source_data is not None:
                                 record['source_pre_signed_url_information'] = source_data
-                        if record is not None and record['target_id'] is not None:
-                            target_data = downloads3("data.csv", record['target_absolute_file_path'] ,record['uuid'],'target')
-                            if data is not None:
+                        if record is not None and record[
+                            'target_id'] is not None and record['job_validation_status'] == 'PASSED':
+                            # s3_filename, file_path,job_uuid,type
+                            target_data = downloads3(result[1], record['job_uuid'])
+                            if target_data is not None:
                                 record['target_pre_signed_url_information'] = target_data
+                        else:
+                            record['target_pre_signed_url_information'] = None
 
                 return response_body(200, "Job run record is retrieved successfully", records)
     except Exception as error:
@@ -194,32 +212,21 @@ def response_body(statuscode, message, body):
     }
     return response
 
-
-def downloads3(s3_filename, file_path,job_uuid,type):
-    """This method is for uploding the validating file to S3"""
-    if type=='target':
-        print("locate target file for the job_id : ", job_uuid)
-        s3_key = file_path.replace("S3://","").replace("s3://",'')
-        s3_file = "target-files/" + s3_key +"/"+job_uuid + "/" + s3_filename
-    if type=='source':
-        print("locate source file for the job_id : ", job_uuid)
-        s3_key = file_path.replace("S3://","").replace("s3://",'')
-        s3_file = "patterns/" +s3_key+"/" + s3_filename
+def downloads3( s3_key,job_uuid):
     try:
         s3_client = boto3.client('s3')
-        print("generating pre-signed url from s3 file : ", s3_bucket + s3_file)
-        # Generate the pre-signed URL
+        # Generate the presigned URL
         pre_signed_url = s3_client.generate_presigned_url(
             'get_object',
-            Params={'Bucket': s3_bucket, 'Key': s3_file},
+            Params={'Bucket': s3_bucket, 'Key': s3_key},
             ExpiresIn=600  # URL expiration time in seconds (adjust as needed)
         )
-        print("pre_signed_url : " + pre_signed_url)
         data = {
             "presignedURL": pre_signed_url,
             "job_id": job_uuid
         }
         return data
+
     except Exception as error:
         print("check", error)
-        return response_body(500, 'generating Pre Signed URL failed', str(error))
+        return (500, str(error), None)

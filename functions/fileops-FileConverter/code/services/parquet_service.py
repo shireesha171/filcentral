@@ -1,14 +1,15 @@
 import os
 
-import psycopg2
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from dbconnection import pool, getConnection
 from .s3_service import S3Service
 
 
 def create_parquet_bytes(df, partitions, file_system, target_path):
+
+    print("create_parquet_bytes::parquet_service", "Creating Parquet Bytes")
+
     # Write DataFrame to a Parquet file in memory
     try:
 
@@ -22,6 +23,8 @@ def create_parquet_bytes(df, partitions, file_system, target_path):
 
 
 def get_partitions(target_metadata):
+    print("get_partitions::parquet_service", "Fetching partitions")
+
     partitions = [partition for partition in target_metadata if
 
                   partition.get("parquet_partition_order") is not None]
@@ -31,37 +34,6 @@ def get_partitions(target_metadata):
     partition_target_columns = [partition.get("target_column") for partition in sorted_partitions]
 
     return partition_target_columns
-
-
-def get_parquet_partition_data(job_uuid):
-    """This method is used for fetching parquet related metadata from db"""
-    conn, cursor = None, None
-
-    try:
-
-        conn, cursor = getConnection()
-
-        get_source_file_configuration_details = """SELECT sfc.target_file_config_details
-                                                   FROM jobs j LEFT JOIN source_file_config sfc ON j.id = sfc.job_id 
-                                                   WHERE j.uuid = %s      
-                                                """
-
-        cursor.execute(get_source_file_configuration_details, (job_uuid,))
-
-        data = cursor.fetchone()
-
-        # data[0] contains target_file_config_details
-        return data[0]
-
-    except psycopg2.DatabaseError as e:
-        print("get_parquet_partition_data::parquet_service", f"Database error: {e}")
-        raise e
-    except Exception as e:
-        print("get_parquet_partition_data::parquet_service", f"Unknown error caught: {e}")
-        raise e
-    finally:
-        cursor.close()
-        pool.putconn(conn)
 
 
 def write_parquet_to_s3(s3_bucket_name, temp_file_path, s3_folder_path):

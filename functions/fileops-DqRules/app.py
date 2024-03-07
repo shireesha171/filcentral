@@ -18,13 +18,16 @@ def response(status_code, message, data):
 
 def lambda_handler(event, context):
     print("Received Event: ", str(event))
-    if event['resource'] == "/job/dq-rules" and event['httpMethod'] == 'POST':
-        return post_dataquality_rules(event)
-    elif event['resource'] == "/job/dq-rules" and event['httpMethod'] == 'GET':
-        return get_dataquality_rules(event)
-    else:
-        return response(404, 'resource or endpoint not found', None)
-
+    try:
+        if event['resource'] == "/job/dq-rules" and event['httpMethod'] == 'POST':
+            return post_dataquality_rules(event)
+        elif event['resource'] == "/job/dq-rules" and event['httpMethod'] == 'GET':
+            return get_dataquality_rules(event)
+        else:
+            return response(404, 'resource or endpoint not found', None)
+    except Exception as e:
+        print(f"lambda_handler::Unknown error caught: {e}")
+        return response(500, 'DQ Rules API has failed due to an Unexpected Error', str(e))
 
 # This method is get the DQRules from Source_file_config table @ 'DQRules' column
 def get_dataquality_rules(event):

@@ -6,6 +6,17 @@ from .constants import account, region, env
 from .enums import JobValidationTypes
 import datetime
 
+def check_date_time(df, column_name):
+    pattern1 = r'\d{2}-\d{2}-\d{4}'
+    pattern2 = r'\d{4}-\d{2}-\d{2}'
+    pattern3 = r'\d{2}/\d{2}/\d{4}'
+    pattern4 = r'\d{4}/\d{2}/\d{2}'
+    patterns = [pattern1, pattern2, pattern3, pattern4]
+    data = [df[df[column_name].str.match(pattern).fillna(False)] for pattern in patterns]
+    data = max(len(item) for item in data)
+    print(data, column_name)
+    return True if data > 0 else None
+
 def get_current_date_time():
   message = "Current datetime: " + str(datetime.datetime.now())
   return message
@@ -42,7 +53,7 @@ def invoke_file_converter_lambda(**kwargs):
     print("invoke_file_converter_lambda::utils", f"Sending Payload to FileConverter lambda: {payload_json}")
 
     response = lambda_client.invoke(
-        FunctionName=f'arn:aws:lambda:{region}:{account}:function:fileops-FileConverter-{env}',
+        FunctionName=f'arn:aws:lambda:{region}:{account}:function:fileops-Fileconverter-{env}',
         InvocationType='Event',
         Payload=payload_json,
         LogType='Tail'

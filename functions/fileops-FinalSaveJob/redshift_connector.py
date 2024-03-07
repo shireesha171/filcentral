@@ -15,10 +15,10 @@ def get_secret(secret_name):
     secret_string = response['SecretString']
     return secret_string
 
-def redshift_connection(secrete_name, sql_query, val=None, many=None):
+def redshift_connection(secret_dict, sql_query):
     try:
-        secret_string = get_secret(secrete_name)
-        secret_dict = json.loads(secret_string)
+        #secret_string = get_secret(secrete_name)
+        #secret_dict = json.loads(secret_string)
         conn = psycopg2.connect(
             host=secret_dict['endpoint'],
             port=secret_dict['port'],
@@ -30,12 +30,43 @@ def redshift_connection(secrete_name, sql_query, val=None, many=None):
         conn.autocommit = True
         redshift_cursor = conn.cursor()
         print("connected successfully")
-        if many:
-            redshift_cursor.executemany(sql_query, val)
-        else:
-            redshift_cursor.execute(sql_query, val)
 
+        redshift_cursor.execute(sql_query)
         conn.commit()
+        return True
+    except psycopg2.Error:
+        # logger.exception('Failed to open database connection.')
+        print("Failed to connect Redshift DB")
+        return False
+    finally:
+        if conn.status:
+            redshift_cursor.close()
+            conn.close()
+
+def redshift_connection_select(secret_dict, sql_query):
+    try:
+        #secret_string = get_secret(secrete_name)
+        #secret_dict = json.loads(secret_string)
+        conn = psycopg2.connect(
+            host=secret_dict['endpoint'],
+            port=secret_dict['port'],
+            database=secret_dict['database'],
+            user=secret_dict['user_name'],
+            password=secret_dict['password']
+        )
+
+        conn.autocommit = True
+        redshift_cursor = conn.cursor()
+        print("connected successfully")
+
+        redshift_cursor.execute(sql_query)
+        record = redshift_cursor.fetchone()[0]
+        conn.commit()
+
+        if record is True:
+            return True
+        else:
+            return False
     except psycopg2.Error:
         # logger.exception('Failed to open database connection.')
         print("Failed to connect Redshift DB")

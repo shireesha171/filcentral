@@ -14,12 +14,11 @@ from io import BytesIO
 from urllib.parse import urlparse
 
 from .data_validations import mandatoryComparision
-from .utils.utils import get_current_date_time
+from .utils.utils import get_current_date_time, check_date_time
 
 env = os.environ.get('Environment')
 s3_storage = os.environ.get('S3FileStorage')
 s3_bucket = f'{s3_storage}-{env}'
-
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -181,12 +180,12 @@ def actualData(source_df, metadata_df, record):
                     get_current_date_time())
         obj['range_mismatch_count'] = forming_values(sum(data_dict.get(
             'count', 0) for data_dict in obj['Number_of_range_mismatch']['value']), None,
-            num_of_schema_validation_errors)
+                                                     num_of_schema_validation_errors)
         logger.info("validating range_mismatch_count  " +
                     get_current_date_time())
         obj['list_value_count'] = forming_values(sum(data_dict.get(
             'count', 0) for data_dict in obj['number_of_list_value_error']['value']), None,
-            num_of_schema_validation_errors)
+                                                 num_of_schema_validation_errors)
         logger.info("validating list_value_count  " + get_current_date_time())
         null_rows = getting_null_rows(source_df)
         obj['null_rows'] = forming_values(
@@ -205,7 +204,7 @@ def creatingDataframe(key, body):
             object_content = body.read()
             delimiter = getDelimiter(object_content)
             print("creatingDataframe:Delimiter ", delimiter)
-            return pd.read_csv(BytesIO(object_content), delimiter=delimiter,  on_bad_lines='skip')
+            return pd.read_csv(BytesIO(object_content), delimiter=delimiter, on_bad_lines='skip')
         except pd.errors.ParserError as pd_error:
             raise pd_error
     elif key.endswith("xlsx"):
@@ -274,12 +273,19 @@ def data_type_checks(source_df, metadata_df):
         check_obj['Passed'] = []
         check_obj['failed'] = []
         for item in meta_columns:
-            if item in source_df.columns and (metadata_df.loc[item]['dtype'] == source_df[item].dtype):
+            item_data_type = source_df[item].dtype
+
+            is_date_time = None
+
+            if item_data_type.name == 'object':
+                is_date_time = check_date_time(source_df, item)
+
+            if item in source_df.columns and (
+                    (metadata_df.loc[item]['dtype'] == source_df[item].dtype) or is_date_time):
                 check_obj['Passed'].append(item)
             else:
                 check_obj['failed'].append(item)
         return check_obj
-
     except Exception as error:
         print("data_type_checks::Error ", error)
 
@@ -327,9 +333,11 @@ def range_check_main(source_df, dq_rules, metadata_df):
                     if metadata_df.loc[item]['dtype'] == "int64":
                         data = range_check_fun(source_df, dq_rules.get(item)[
                             'range_check'], item)
-                        obj = {"column_name": item,
-                               "data": data.to_dict(orient='records')}
-                        column_mismatch.append(obj)
+
+                        if data.size > 0:
+                            obj = {"column_name": item,
+                                   "data": data.to_dict(orient='records')}
+                            column_mismatch.append(obj)
             return column_mismatch
         else:
             return []

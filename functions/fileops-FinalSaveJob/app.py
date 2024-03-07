@@ -5,8 +5,10 @@ import boto3
 import os
 from botocore.exceptions import ClientError
 import pandas as pd
-from redshift_connector import redshift_connection, get_secret
+from redshift_connector import redshift_connection, get_secret, redshift_connection_select
 import uuid
+from datetime import datetime
+
 
 env = os.environ.get('Environment')
 redshift_role = os.environ.get('Redshift_Role')
@@ -23,14 +25,17 @@ role_arn = f'arn:aws:iam::{Account}:role/FileOps_Role'
 
 def lambda_handler(event, handler):
     print("Received Event: ", str(event))
-    query_params = event.get('queryStringParameters', None)
-    if event['resource'] == "/job/final-save" and event['httpMethod'] == 'POST':
-        if 'body' in event:
-            body = json.loads(event['body'])
-            return businessProcessStatusUpdate(body)
-    elif event['resource'] == "/job/final-save" and event['httpMethod'] == 'GET':
-        return sourceConfigDetails(query_params)
-
+    try:
+        query_params = event.get('queryStringParameters', None)
+        if event['resource'] == "/job/final-save" and event['httpMethod'] == 'POST':
+            if 'body' in event:
+                body = json.loads(event['body'])
+                return businessProcessStatusUpdate(body)
+        elif event['resource'] == "/job/final-save" and event['httpMethod'] == 'GET':
+            return sourceConfigDetails(query_params)
+    except Exception as e:
+        print(f"lambda_handler::Unknown error caught: {e}")
+        return response_body(500, 'Final Job Save API has failed due to an Unexpected Error', str(e))
 
 def businessProcessStatusUpdate(body):
     if body is not None and "business_process_id" in body:
@@ -61,8 +66,10 @@ def businessProcessStatusUpdate(body):
             conn.commit()
             jobs_query1 = """
                               SELECT j.schedule_json, j.job_name, sc.file_config_details,sc2.location_pattern,j.job_type,
-                                   j.id, tc2.location_pattern as target_location_pattern, tc2.secret_name, sc.target_metadata, tc2.connectivity_type
+                                   j.id, tc2.location_pattern as target_location_pattern, tc2.secret_name, sc.target_metadata, 
+                                   tc2.connectivity_type, bp.name as business_process
                                   FROM jobs as j
+                                  join business_process as bp on bp.id = j.business_process_id
     				              JOIN source_file_config as sc on j.id = sc.job_id
     				              left join source_config sc2 on sc2.id = sc.source_id
     				              left join target_config tc2 on tc2.id = sc.target_id
@@ -76,12 +83,13 @@ def businessProcessStatusUpdate(body):
                 # create table in external schema of Redshift
                 job_name = record[1].replace(' ', '-')
                 job_int_id = record[5]
-                redshift_ext_table_raw = str(job_name) + "_" + str(job_int_id)
-                redshift_ext_table = redshift_ext_table_raw
-                target_location_pattern = record[6]
-                secret_name = 'fdo536T-dev' #record[7]
-                target_schema = record[8]
-                create_ext_table_redshift(redshift_ext_table, target_location_pattern, secret_name, target_schema)
+                business_process = record[10]
+                redshift_ext_table = replace_chars(str(business_process)) + "_" + replace_chars(str(job_name))
+                #redshift_ext_table = str(job_name)
+                target_location_pattern = replace_the_pattern_with_date(record[6])
+                secret_name = record[7]
+                target_schema = json_array_tostring(record[8])  # target_metadata converted into string for the schema creation
+                create_ext_table_redshift(redshift_ext_table, target_location_pattern, secret_name, target_schema, job_int_id)
 
             print(record[2])
             if record[4] == 's3_trigger':
@@ -158,27 +166,57 @@ def businessProcessStatusUpdate(body):
     else:
         return response_body(400, "Business_process_id not found", "")
 
-def create_ext_table_redshift(table_name,target_location,secret_name,schema):
-    secret_string = get_secret(secret_name)
-    secret_dict = json.loads(secret_string)
-    database = secret_dict['database']
-    create_schema_query = f"CREATE EXTERNAL SCHEMA IF NOT EXISTS filecentral_ext_schema FROM DATA CATALOG DATABASE '{database}' IAM_ROLE '{redshift_role}' CREATE EXTERNAL DATABASE IF NOT EXISTS;"
-    redshift_connection(create_schema_query)
-    print("external schema created")
-    create_table_query = f"create external table filecentral_ext_schema.{table_name}(" + schema + ")" + f" ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' LOCATION '{target_location}' TABLE PROPERTIES ('skip.header.line.count'='1');"
+def create_ext_table_redshift(table_name,target_location,secret_name,schema,job_int_id):
+    conn, cursor = None, None
+    try:
+        conn, cursor = getConnection()
 
-    table_exists = redshift_connection("SELECT EXISTS(SELECT * FROM svv_external_tables WHERE tablename = %s);",
-                                       (table_name,))
-    print(table_exists)
-    # if table_exists[0][0] == True:
-    if table_exists is not None:
-        print(f"table '{table_name}' already existing")
-    else:
-        redshift_connection(create_table_query)
-        print(f"The '{table_name}' table is created")
-    # select_query = f'select * from ext_schema.{table_name} limit 10'
-    # redshift_connection(select_query)
+        secret_string = get_secret(secret_name)
+        secret_dict = json.loads(secret_string)
+        database = secret_dict['database']
+        create_schema_query = f"CREATE EXTERNAL SCHEMA IF NOT EXISTS filecentral_ext_schema FROM DATA CATALOG DATABASE '{database}' IAM_ROLE '{redshift_role}' CREATE EXTERNAL DATABASE IF NOT EXISTS;"
+        redshift_connection(secret_dict, create_schema_query)
+        print("external schema created")
+        create_table_query = f"create external table filecentral_ext_schema.{table_name}(" + schema + ")" + f" ROW FORMAT DELIMITED FIELDS TERMINATED BY ',' LOCATION '{target_location}' TABLE PROPERTIES ('skip.header.line.count'='1');"
 
+        check_table_exists = f"SELECT EXISTS(SELECT * FROM svv_external_tables WHERE tablename = '{table_name}');"
+
+        table_exist = redshift_connection_select(secret_dict,check_table_exists)
+        print(f"table exits: {table_exist}")
+        # if table_exists[0][0] == True:
+        if table_exist is True:
+            print(f"table '{table_name}' already existing")
+        else:
+            exec_status = redshift_connection(secret_dict, create_table_query)
+            if exec_status is True:
+                jobs_query = """ UPDATE jobs SET redshift_table_created = 'success', redshift_schema = %s where id = %s """
+                values = (schema,job_int_id,)
+                print(f"The '{table_name}' Redshift table has been created successfully")
+            else:
+                jobs_query = """ UPDATE jobs SET redshift_table_created = 'failed', redshift_schema = %s where id = %s """
+                values = (schema,job_int_id,)
+                print(f"The '{table_name}' Redshift table failed to create")
+            cursor.execute(jobs_query, values)
+            conn.commit()
+
+        # select_query = f'select * from ext_schema.{table_name} limit 10'
+        # redshift_connection(select_query)
+    except Exception as error:
+        print("Error executing update query:", error)
+    finally:
+        cursor.close()
+        pool.putconn(conn)
+
+def json_array_tostring(json_array):
+    store_list_string = ""
+    string_value = None
+    standard_datatypes = {"int64":"BIGINT","string":"VARCHAR","float64":"REAL" }
+    for item in json_array:
+        if string_value:
+            store_list_string += ", "
+        string_value = item['target_column'] + " " + standard_datatypes.get(item['dtype'])
+        store_list_string += string_value
+    return store_list_string
 def sourceConfigDetails(body):
     conn, cursor = None, None
     try:
@@ -304,3 +342,32 @@ def creating_S3_trigger(job_id, location_pattern):
         }
     )
     print("response", response)
+
+def replace_the_pattern_with_date(date_expression_string):
+    date_pattern = r'\${(.*?)}'
+    import re
+    print("date_expression_string", date_expression_string)
+    match = re.search(date_pattern, date_expression_string)
+    date = datetime.now().date()
+    if match:
+        formatted_date = date.strftime(match.group(1))
+        formatted_string = date_expression_string.replace(f"{match.group()}", formatted_date)
+    # Added support for locations and paths without ${} group blocks
+    elif date_expression_string is not None and date_expression_string.find("%") != -1:
+        formatted_string = date.strftime(date_expression_string)
+    else:
+        print("No date format found in the input string.")
+        formatted_string = date_expression_string
+    return formatted_string
+
+def replace_chars(string):
+    special_characters = "!@#$%^&*()_+{}|:\"<>?[]\;',./`~"
+    result = ""
+    for char in string:
+        if char.isalnum():
+            result += char
+        elif char == " ":
+            result += "_"
+        else:
+            result += "_"
+    return result
