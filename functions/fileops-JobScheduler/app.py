@@ -13,10 +13,11 @@ scheduler_client = boto3.client('scheduler')
 # these values come from the EventBridge schedule itself
 
 Account = os.environ.get('Account')
+region = os.environ.get('Region')
 env = os.environ.get('Environment')
 
-target_arn = f'arn:aws:lambda:us-east-2:{Account}:function:fileops-ValidationProcess-{env}'
-role_arn = f'arn:aws:iam::{Account}:role/FileOps_Role'
+target_arn = f'arn:aws:lambda:{region}:{Account}:function:fileops-ValidationProcess-{env}'
+role_arn = f'arn:aws:iam::{Account}:role/FileOps_Role-{env}'
 
 
 def prepare_cron_expression(payload):

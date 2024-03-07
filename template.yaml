@@ -61,6 +61,7 @@ Parameters:
   RedshiftRole:
     Type: String
     Default: "arn:aws:iam::327083347288:role/redshift-role"
+    
 
 Resources:
   CognitoUserPool:
