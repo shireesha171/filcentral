@@ -593,6 +593,7 @@ Resources:
           Email_Notification_Sns_Topic: !Ref FileopsEmailNotificationSnsTopic
           S3FileStorage: !Ref S3FileStorage
           Account: !Sub ${AWS::AccountId}
+          Region: !Sub ${AWS::Region}
           Redshift_Role: !Ref RedshiftRole
 
   fileopsJobRunDetails:

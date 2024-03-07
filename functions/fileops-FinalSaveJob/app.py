@@ -12,6 +12,7 @@ from datetime import datetime
 
 env = os.environ.get('Environment')
 redshift_role = os.environ.get('Redshift_Role')
+region = os.environ.get('Region')
 scheduler_sns_topic = os.environ.get('Scheduler_Sns_Topic')
 email_notification_sns_topic = os.environ.get('Email_Notification_Sns_Topic')
 
@@ -20,7 +21,7 @@ s3_storage = os.environ.get('S3FileStorage')
 s3_bucket = f'{s3_storage}-{env}'
 
 Account = os.environ.get('Account')
-role_arn = f'arn:aws:iam::{Account}:role/FileOps_Role'
+role_arn = f'arn:aws:iam::{Account}:role/FileOps_Role-{env}'
 
 
 def lambda_handler(event, handler):
@@ -308,7 +309,7 @@ def creating_S3_trigger(job_id, location_pattern):
     s3_prefix=s3_prefix.split('/')[0]
     s3_prefix_final = s3_prefix + "/"
     print("prefixxx", s3_prefix_final)
-    lambda_function_arn = f'arn:aws:lambda:us-east-2:{Account}:function:fileops-ValidationProcess-{env}'
+    lambda_function_arn = f'arn:aws:lambda:{region}:{Account}:function:fileops-ValidationProcess-{env}'
 
     lambda_function_configurations = []
 
