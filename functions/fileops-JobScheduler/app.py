@@ -131,7 +131,7 @@ def lambda_handler(event, context):
             }
         }
         target = {
-            'Arn': f'arn:aws:lambda:us-east-2:{Account}:function:fileops-ValidationProcess-{env}',
+            'Arn': f'arn:aws:lambda:{region}:{Account}:function:fileops-ValidationProcess-{env}',
             'Input': json.dumps(lambda_event),
             'RetryPolicy': {
                 'MaximumEventAgeInSeconds': 123,
