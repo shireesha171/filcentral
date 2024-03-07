@@ -955,7 +955,7 @@ Resources:
           Region: !Sub ${AWS::Region}
           Email_Notification_Sns_Topic: !Ref FileopsEmailNotificationSnsTopic
 
-  fileopsValidationProcessPermission:
+  fileopsValidationProcesPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:invokeFunction
